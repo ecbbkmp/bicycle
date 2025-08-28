@@ -1,0 +1,100 @@
+{% extends 'base.html' %}
+
+{% block extraheader %}
+{% if snippet.latitude and snippet.longitude %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+<style>
+  #map {
+    height: 300px;
+    width: 100%;
+    margin-top: 10px;
+  }
+
+.label {
+    font-weight: bold;
+    color: #2e4a3b; /* Consistent bold text color */
+    margin-top: 1.5rem;
+    margin-bottom: 0.5rem;
+    font-size: 40px;
+    background-color: rgba(173, 216, 230, 0.7); /* 薄い水色 (半透明) */
+    padding: 5px 10px;
+    display: inline-block;
+    border-radius: 6px;
+}
+</style>
+{% endif %}
+{% endblock %}
+
+{% block main %}
+<div class="snippet-box">
+    <h2>
+        <span class="label">{{ snippet.title }}by {{ snippet.created_by.username }}</span>
+        {% if snippet.is_resolved %}
+            <span class="badge bg-success">解決済み</span>
+        {% else %}
+            <span class="badge bg-danger">未解決</span>
+        {% endif %}
+    </h2>
+
+    <div class="snippet-date">
+        <div class="section-label">
+        投稿日： {{ snippet.created_at|date:'DATETIME_FORMAT' }}
+            </div>
+        {% if user.is_authenticated and snippet.created_by_id == user.id %}
+        <a class="btn btn-primary" href="{% url 'snippet_edit' snippet.id %}">編集</a>
+
+        <form action="{% url 'toggle_resolved' snippet.id %}" method="post" style="display: inline-block; margin-left: 10px;">
+            {% csrf_token %}
+            {% if snippet.is_resolved %}
+                <button type="submit" class="btn btn-sm btn-warning">未解決に戻す</button>
+            {% else %}
+                <button type="submit" class="btn btn-sm btn-success">解決済みにする</button>
+            {% endif %}
+        </form>
+        {% endif %}
+    </div>
+
+    <div class="section-label">自転車の写真</div>
+    {% if snippet.problem_image %}
+        <img src="{{ snippet.problem_image.url }}" alt="問題点の写真" style="max-width: 100%; height: auto; margin-top: 10px;">
+    {% else %}
+        <p>写真はありません。</p>
+    {% endif %}
+
+    <div class="section-label">説明</div>
+    <p>{{ snippet.description }}</p>
+
+    <div class="section-label">場所</div>
+    {% if snippet.latitude and snippet.longitude %}
+    <div id="map"></div>
+    <script>
+      var map = L.map('map').setView([{{ snippet.latitude }}, {{ snippet.longitude }}], 15);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(map);
+
+      var marker = L.marker([{{ snippet.latitude }}, {{ snippet.longitude }}]).addTo(map);
+      marker.bindPopup("<b>{{ snippet.title }}</b>");
+    </script>
+
+    <div class="section-label">目撃情報</div>
+    <a href="{% url 'sighting_new' snippet.id %}" class="btn btn-primary">この自転車の目撃情報を投稿する</a>
+    <br><br>
+
+
+    <p>
+    {% for sighting in sightings %}
+        <a href="{% url 'sighting_detail' sighting.id %}">
+            <strong>{{ sighting.sighting_datetime|date:"Y/m/d H:i" }}</strong>
+            - {{ sighting.sighting_location }} (報告者: {{ sighting.created_by.username }})
+        </a>
+        <br>
+    {% empty %}
+        <p>まだ目撃情報はありません。</p>
+    {% endfor %}
+    </p>
+
+    {% endif %}
+</div>
+{% endblock %}

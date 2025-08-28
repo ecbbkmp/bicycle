@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+
+{% block main %}
+
+<h2 class="text-bg heading-large">目撃情報の詳細</h2><br>
+  <p class="text-bg"><strong>関連投稿：</strong> <a href="{% url 'snippet_detail' sighting.theft_report.id %}">{{ sighting.theft_report.title }}</a></p><br>
+  <p class="text-bg"><strong>目撃場所：</strong> {{ sighting.sighting_location }}</p><br>
+  <p class="text-bg"><strong>目撃日時：</strong> {{ sighting.sighting_datetime|date:"Y年m月d日 H:i" }}</p><br>
+  <p class="text-bg"><strong>報告者：</strong> {{ sighting.created_by.username }}</p><br>
+
+
+{% if sighting.sighting_image %}
+  <div>
+    <img src="{{ sighting.sighting_image.url }}" alt="目撃写真" style="max-width: 100%; height: auto; border-radius: 8px;">
+  </div>
+{% endif %}
+<hr>
+
+<h3 class="text-bg heading-large">会話（コメント）</h3>
+
+<!-- 投稿フォーム -->
+<form method="post" action="{% url 'add_comment' sighting.id %}">
+  {% csrf_token %}
+  <div>
+    <textarea name="content" rows="3" style="width:100%;" placeholder="メッセージを入力してください..."></textarea>
+  </div>
+  <div>
+    <button class="btn-primary">送信</button>
+  </div>
+</form>
+
+<hr>
+
+<!-- 投稿の表示 -->
+<div class="comment-log">
+  {% for comment in comments %}
+    <div style="border:1px solid #ccc; border-radius:8px; padding:8px; margin-bottom:8px;">
+      <p><strong>{{ comment.user.username }}</strong> <small>{{ comment.created_at|date:"Y-m-d H:i" }}</small></p>
+      <p>{{ comment.content }}</p>
+    </div>
+  {% empty %}
+    <p class="text-bg heading-large">まだコメントはありません。</p>
+  {% endfor %}
+</div>
+
+<a href="{% url 'snippet_detail' sighting.theft_report.id %}" class="btn btn-primary mt-3">投稿詳細に戻る</a>
+
+<style>
+  .text-bg {
+    font-size: 1.2em;  /* 文字大（1.2倍） */
+  }
+
+  .heading-large {
+    font-size: 2em;
+  }
+.comment-log {
+    background-color: rgba(255, 255, 255, 0.5);
+    padding: 10px;
+    border-radius: 8px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+.comment-log p {
+    margin: 5px 0;
+}
+  .comment-log div {
+    font-weight: 600;
+}
+</style>
+
+{% endblock %}

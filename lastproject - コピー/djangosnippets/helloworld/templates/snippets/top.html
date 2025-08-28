@@ -1,0 +1,160 @@
+{% extends 'base.html' %}
+
+{% block extraheader %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
+
+<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+<style>
+    #map {
+        height: 400px;
+        width: 100%;
+        margin-top: 20px;
+    }
+    .search-container {
+      margin-top: 15px;
+      margin-bottom: 10px;
+      display: flex;
+      gap: 10px;
+    }
+</style>
+{% endblock extraheader %}
+
+{% block main %}
+<div class="welcome">
+    <h1 class="title">チャリのチャリティーサイト</h1>
+    <p class="subtitle">投稿はこちら</p>
+    <a class="btn btn-primary" href="{% url 'snippet_new' %}">投稿</a>
+</div>
+
+
+<div class="search-container">
+    <input type="text" id="address-search" class="form-control" placeholder="住所や施設名で検索">
+    <button type="button" id="search-button" class="btn btn-primary">検索</button>
+</div>
+
+<div id="map"></div>
+<script>
+    var map = L.map('map').setView([35.681236, 139.767125], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+
+    var markers = L.markerClusterGroup();
+
+    var theftIcon = L.icon({
+        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+        iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34],
+    });
+    var resolvedIcon = L.icon({
+        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+        iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34],
+    });
+    var shopIcon = L.icon({
+        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+        iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34],
+    });
+
+    {% for shop in shops %}
+        var shopMarker = L.marker([{{ shop.latitude }}, {{ shop.longitude }}], {icon: shopIcon})
+                          .bindPopup("<b>{{ shop.name }}</b><br>盗難場所<br>{{ shop.address }}");
+        markers.addLayer(shopMarker);
+    {% endfor %}
+
+    {% for snippet in all_snippets %}
+        {% if snippet.latitude and snippet.longitude %}
+            var iconToUse = {% if snippet.is_resolved %}resolvedIcon{% else %}theftIcon{% endif %};
+            var snippetMarker = L.marker([{{ snippet.latitude }}, {{ snippet.longitude }}], {icon: iconToUse})
+                                 .bindPopup("<b><a href='{% url 'snippet_detail' snippet.id %}'>{{ snippet.title }}</a></b><br>{% if snippet.is_resolved %}解決済み{% else %}未解決{% endif %}");
+            markers.addLayer(snippetMarker);
+        {% endif %}
+    {% endfor %}
+
+    map.addLayer(markers);
+
+    document.getElementById('search-button').addEventListener('click', function() {
+        var query = document.getElementById('address-search').value;
+        if (!query) return;
+
+        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`)
+          .then(response => response.json())
+          .then(data => {
+            if (data && data.length > 0) {
+              var lat = data[0].lat;
+              var lon = data[0].lon;
+              map.setView([lat, lon], 16);
+            } else {
+              alert('場所が見つかりませんでした。');
+            }
+          })
+          .catch(error => {
+            console.error('検索に失敗しました:', error);
+            alert('検索中にエラーが発生しました。');
+          });
+    });
+</script>
+
+<div class="text-center my-3">
+    <p class="h5">現在の盗難状況：{{ total_count }}件</p>
+</div>
+
+<a href="{% url 'shop_new' %}" class="btn btn-primary">自転車盗難場所を追加</a>
+
+<hr>
+<h4>投稿の検索</h4>
+<form method="get" action="{% url 'top' %}" class="search-container">
+    <input type="text" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="投稿者名で検索...">
+    <button class="btn btn-primary" type="submit">検索</button>
+</form>
+
+{% if page_obj %}
+<table class="table">
+    <thead>
+    <tr>
+        <th>投稿者</th>
+        <th>投稿日</th>
+        <th>タイトル</th>
+        <th>ステータス</th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for snippet in page_obj %}
+    <tr>
+        <th>{{ snippet.created_by.username }}</th>
+        <th>{{ snippet.created_at }}</th>
+        <th><a href="{% url 'snippet_detail' snippet.id %}">{{ snippet.title }}</a></th>
+        <th>
+            {% if snippet.is_resolved %}
+                <span class="badge bg-success">解決済み</span>
+            {% else %}
+                <span class="badge bg-danger">未解決</span>
+            {% endif %}
+        </th>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+
+<nav aria-label="Page navigation">
+  <ul class="pagination justify-content-center">
+    {% if page_obj.has_previous %}
+      <li class="page-item"><a class="page-link" href="?page=1&q={{ query|default:'' }}">&laquo; 最初</a></li>
+      <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}&q={{ query|default:'' }}">前へ</a></li>
+    {% endif %}
+
+    <li class="page-item disabled"><span class="page-link">ページ {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+
+    {% if page_obj.has_next %}
+      <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}&q={{ query|default:'' }}">次へ</a></li>
+      <li class="page-item"><a class="page-link" href="?page={{ page_obj.paginator.num_pages }}&q={{ query|default:'' }}">最後 &raquo;</a></li>
+    {% endif %}
+  </ul>
+</nav>
+
+{% else %}
+<p>該当する投稿はありません．</p>
+{% endif %}
+
+{% endblock main %}
